@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+
+. /lib/lsb/init-functions
+
+MAGENTO_VERSION=$1
+
+MODULE_PATH=$(readlink -f $(dirname $(readlink -f $0))/..)
+ROOT_PATH=$(readlink -f ${MODULE_PATH}/../../..)
+MAGENTO_PATH=${ROOT_PATH}/magento
+PROJECT_GLOBAL_CONFIG=${ROOT_PATH}/global.conf
+PROJECT_LOCAL_CONFIG=${ROOT_PATH}/local.conf
+
+source ${MODULE_PATH}/global.conf
+
+if [ -f ${PROJECT_GLOBAL_CONFIG} ];
+then
+    source ${PROJECT_GLOBAL_CONFIG}
+fi
+
+if [ -f ${PROJECT_LOCAL_CONFIG} ];
+then
+    source ${PROJECT_LOCAL_CONFIG}
+fi
+
+${MODULE_PATH}/bin/reinstall-magento ${MAGENTO_VERSION}
+if [ "$?" -ne "0" ]; then
+    exit 1
+fi
+
+${MODULE_PATH}/bin/sync-project
+if [ "$?" -ne "0" ]; then
+    exit 1
+fi
+
+if [ "${PROJECT_MODULE_NAME}" != "no" ];
+then
+    ${MAGENTO_PATH}/bin/magento module:enable ${PROJECT_MODULE_NAME}
+fi
+
+${MAGENTO_PATH}/bin/magento setup:upgrade
+
+log_success_msg "Project has been reinstalled"

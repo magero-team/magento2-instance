@@ -1,0 +1,99 @@
+#!/usr/bin/env bash
+
+. /lib/lsb/init-functions
+
+MAGENTO_VERSION=$1
+
+MODULE_PATH=$(readlink -f $(dirname $(readlink -f $0))/..)
+ROOT_PATH=$(readlink -f ${MODULE_PATH}/../../..)
+MAGENTO_PATH=${ROOT_PATH}/magento
+CONFIGS_PATH=${ROOT_PATH}/configs
+CURRENT_USER=$(whoami)
+PROJECT_GLOBAL_CONFIG=${ROOT_PATH}/global.conf
+PROJECT_LOCAL_CONFIG=${ROOT_PATH}/local.conf
+
+source ${MODULE_PATH}/global.conf
+
+if [ -f ${PROJECT_GLOBAL_CONFIG} ];
+then
+    source ${PROJECT_GLOBAL_CONFIG}
+fi
+
+if [ -f ${PROJECT_LOCAL_CONFIG} ];
+then
+    source ${PROJECT_LOCAL_CONFIG}
+fi
+
+mysql -u${DB_USER} -p${DB_PASSWORD} -e "CREATE DATABASE ${DB_NAME} CHARACTER SET utf8 COLLATE utf8_general_ci;"
+
+rm -rf ${CONFIGS_PATH}
+mkdir -p ${CONFIGS_PATH}/etc/apache2/sites-available/
+cp ${MODULE_PATH}/env/etc/apache2/sites-available/magento2.conf ${CONFIGS_PATH}/etc/apache2/sites-available/${DOMAIN}.conf
+cp ${MODULE_PATH}/env/etc/hosts ${CONFIGS_PATH}/etc/hosts
+mkdir -p ${CONFIGS_PATH}/etc/cron.d/
+CRON_FILE=${CONFIGS_PATH}/etc/cron.d/${DOMAIN//./_}
+cp ${MODULE_PATH}/env/etc/cron.d/magento2 ${CRON_FILE}
+
+
+perl -pi -e "s,#domain#,${DOMAIN},g" ${CONFIGS_PATH}/etc/apache2/sites-available/${DOMAIN}.conf ${CONFIGS_PATH}/etc/hosts
+perl -pi -e "s,#documentroot#,${MAGENTO_PATH},g" ${CONFIGS_PATH}/etc/apache2/sites-available/${DOMAIN}.conf ${CRON_FILE}
+
+if [ ! -d ${MAGENTO_PATH} ];
+then
+    echo "Installing Magento 2 dependencies"
+    composer create-project --repository-url=https://repo.magento.com/ magento/project-community-edition ${MAGENTO_PATH} ${MAGENTO_VERSION}
+    if [ "$?" -ne "0" ]; then
+        rm -rf ${MAGENTO_PATH}
+        log_failure_msg "Magento 2 dependencies installing failed"
+        exit 1
+    fi
+fi
+
+mkdir -p ${MAGENTO_PATH}/var/composer_home/
+cp ${MODULE_PATH}/env/composer/auth.json ${MAGENTO_PATH}/var/composer_home/auth.json
+
+cd ${MAGENTO_PATH}
+find var vendor pub/static pub/media app/etc -type f -exec chmod g+w {} \;
+find var vendor pub/static pub/media app/etc -type d -exec chmod g+ws {} \;
+sudo chmod +x bin/magento
+
+echo "Installing Magento"
+if [ "${INSTALL_SAMPLE_DATA}" == "yes" ];
+then
+    ${MAGENTO_PATH}/bin/magento sampledata:deploy
+fi
+${MAGENTO_PATH}/bin/magento setup:install \
+--admin-firstname=${ADMIN_FIRSTNAME} \
+--admin-lastname=${ADMIN_LASTNAME} \
+--admin-email=${ADMIN_EMAIL} \
+--admin-user=${ADMIN_USER} \
+--admin-password=${ADMIN_PASSWORD} \
+--base-url=http://${DOMAIN} \
+--backend-frontname=${BACKEND_FRONTNAME} \
+--db-host=${DB_HOST} \
+--db-name=${DB_NAME} \
+--db-user=${DB_USER} \
+--db-password=${DB_PASSWORD} \
+--language=${LANGUAGE} \
+--currency=${CURRENCY} \
+--timezone=${TIMEZONE} \
+--use-rewrites=1 \
+--session-save=db
+
+if [ "$?" -ne "0" ]; then
+  log_failure_msg "Magento 2 installing failed"
+  exit 1
+fi
+
+cd ${MAGENTO_PATH}
+sudo find var pub/static pub/media app/etc -type f -exec chmod g+w {} \;
+sudo find var pub/static pub/media app/etc -type d -exec chmod g+ws {} \;
+
+if [ "${IS_USER_FILES_OWNER}" == "yes" ];
+then
+    sudo chown -R ${CURRENT_USER}:${CURRENT_USER} ${MAGENTO_PATH}
+else
+    sudo chown -R www-data:${CURRENT_USER} ${MAGENTO_PATH}
+fi
+
+ log_success_msg "Magento has been installed"

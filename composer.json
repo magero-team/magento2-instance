@@ -1,0 +1,30 @@
+{
+    "name": "magero/magento2-instance",
+    "description": "Environment for develop of extensions for Magento2",
+    "type": "composer-plugin",
+    "authors": [
+        {
+            "name": "VVeb Developer",
+            "email": "developer@vveb.pro"
+        }
+    ],
+    "require": {
+        "composer-plugin-api": "^1.1",
+        "magero/project-synchronizer": "^1.1"
+    },
+    "autoload": {
+        "psr-4": {
+            "Magero\\Composer\\Magento2\\": "src/"
+        }
+    },
+    "extra": {
+        "class": "Magero\\Composer\\Magento2\\Plugin"
+    },
+    "bin": [
+        "bin/install-magento",
+        "bin/uninstall-magento",
+        "bin/reinstall-magento",
+        "bin/reinstall-project",
+        "bin/sync-project"
+    ]
+}
