@@ -38,7 +38,7 @@ if [ "$?" -ne "0" ]; then
     log_failure_msg "Project synchronization failed"
 fi
 composer modules-integrate "${DEV_MODULE_COMPOSER_JSON_FILES}"
-composer update -d ${MAGENTO_PATH}
+composer dump-autoload -d ${MAGENTO_PATH}
 
 if [ "${IS_USER_FILES_OWNER}" == "yes" ];
 then
