@@ -2,13 +2,9 @@
 
 namespace Magero\Composer\Magento2\Command;
 
-use Symfony\Component\Console;
 use Composer\Command\BaseCommand;
+use Symfony\Component\Console;
 
-/**
- * Class ModulesIntegrateCommand
- * @package Magero\Composer\Magento2\Command
- */
 class ModulesIntegrateCommand extends BaseCommand
 {
     const ARGUMENT_JSON_FILES = 'json_files';
@@ -45,28 +41,36 @@ class ModulesIntegrateCommand extends BaseCommand
         $mainJsonFile = $magentoPath . 'composer.json';
         $mainJsonFileData = json_decode(file_get_contents($mainJsonFile), true);
         $hasChanges = false;
+
         foreach ($jsonFiles as $jsonFile) {
             $filePath = $magentoPath . $jsonFile;
             $jsonDirectory = dirname($jsonFile) . DIRECTORY_SEPARATOR;
+
             if (!is_readable($filePath)) {
                 throw new Console\Exception\InvalidArgumentException('Json file not found: ' . $filePath);
             }
+
             $fileData = json_decode(file_get_contents($filePath), true);
+
             if (!empty($fileData['require'])) {
                 foreach ($fileData['require'] as $package => $version) {
                     if (!array_key_exists($package, $mainJsonFileData['require'])) {
+                        $hasChanges = true;
                         $mainJsonFileData['require'][$package] = $version;
                     }
                 }
             }
+
             if (!empty($fileData['autoload'])) {
                 foreach ($fileData['autoload'] as $type => $items) {
                     if (!in_array($type, ['psr-4', 'psr-0', 'files', 'classmap', 'exclude-from-classmap'])) {
                         continue;
                     }
+
                     if (!array_key_exists($type, $mainJsonFileData['autoload'])) {
                         $mainJsonFileData['autoload'][$type] = [];
                     }
+
                     if (substr($type, 0, 3) === 'psr') {
                         foreach ($items as $namespace => $path) {
                             if (is_array($path)) {
@@ -84,6 +88,7 @@ class ModulesIntegrateCommand extends BaseCommand
                                 }
                             } else {
                                 $jsonDirectoryPath = $jsonDirectory . $path;
+
                                 if (!isset($mainJsonFileData['autoload'][$type][$namespace])) {
                                     $hasChanges = true;
                                     $mainJsonFileData['autoload'][$type][$namespace] = $jsonDirectoryPath;
@@ -106,6 +111,7 @@ class ModulesIntegrateCommand extends BaseCommand
                             if (($type === 'files') && ($path === 'registration.php')) {
                                 continue;
                             }
+
                             if (!in_array($jsonDirectory . $path, $mainJsonFileData['autoload'][$type])) {
                                 $hasChanges = true;
                                 $mainJsonFileData['autoload'][$type][] = $jsonDirectory . $path;
